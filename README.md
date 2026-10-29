@@ -6,7 +6,6 @@ Local CLI + Telegram-controlled coding agent
 
 ```bash
 npm install
-copy .env.example .env
 npm run build
 ```
 
