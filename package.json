@@ -1,0 +1,43 @@
+{
+  "name": "omy",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "bin": {
+    "omy": "./dist/index.js"
+  },
+  "scripts": {
+    "dev": "tsx watch src/index.ts",
+    "build": "tsc -p tsconfig.json",
+    "start": "node dist/index.js",
+    "bot": "node dist/index.js bot",
+    "lint": "tsc -p tsconfig.json --noEmit",
+    "test": "echo \"No tests specified\" && exit 0"
+  },
+  "dependencies": {
+    "@ai-sdk/groq": "^4.0.72",
+    "@inquirer/prompts": "^7.8.2",
+    "@supermemory/tools": "^1.4.6",
+    "@vscode/ripgrep": "^1.17.1",
+    "ai": "^7.0.156",
+    "boxen": "^8.0.1",
+    "chalk": "^5.6.2",
+    "commander": "^14.0.3",
+    "diff": "^8.0.2",
+    "dotenv": "^17.4.2",
+    "execa": "^9.6.0",
+    "figlet": "^1.11.0",
+    "glob": "^11.0.3",
+    "gradient-string": "^3.0.0",
+    "groq-sdk": "^1.6.0",
+    "log-update": "^6.1.0",
+    "ora": "^9.3.0",
+    "telegraf": "^4.16.3",
+    "zod": "^4.3.6"
+  },
+  "devDependencies": {
+    "@types/node": "^24.0.0",
+    "tsx": "^4.20.5",
+    "typescript": "^5.9.2"
+  }
+}
