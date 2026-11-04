@@ -9,7 +9,7 @@
   "scripts": {
     "dev": "tsx watch src/index.ts",
     "build": "tsc -p tsconfig.json",
-    "start": "node dist/index.js",
+    "start": "omy status",
     "bot": "node dist/index.js bot",
     "lint": "tsc -p tsconfig.json --noEmit",
     "test": "echo \"No tests specified\" && exit 0"
@@ -17,7 +17,6 @@
   "dependencies": {
     "@ai-sdk/groq": "^4.0.72",
     "@inquirer/prompts": "^7.8.2",
-    "@supermemory/tools": "^1.4.6",
     "@vscode/ripgrep": "^1.17.1",
     "ai": "^7.0.156",
     "boxen": "^8.0.1",

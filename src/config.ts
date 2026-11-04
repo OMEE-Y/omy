@@ -5,10 +5,6 @@ export type AppConfig = {
   confirmOverwrite: boolean;
   shellAllowlist: string[] | null;
 
-  supermemory: {
-    apiKey: string | null;
-  };
-
   telegram: {
     token: string | null;
     ownerId: number | null;
@@ -69,12 +65,7 @@ export function loadConfig(): AppConfig {
       ? allow
       : null,
 
-    supermemory: {
-      apiKey:
-        process.env.SUPERMEMORY_API_KEY || null,
-    },
-
-    telegram: {
+      telegram: {
       token:
         process.env.TELEGRAM_BOT_TOKEN || null,
 
