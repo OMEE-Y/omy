@@ -1,15 +1,58 @@
-
 # OMY
 
-Local CLI + Telegram-controlled coding agent
+Local CLI + Telegram-controlled coding agent.
+
+## Install
+
+OMY supports **Windows, macOS, and Linux** with a one-command installer.
+
+### Requirements
+
+- Node.js 22 or later
+- Git
+- npm
+
+### Windows (PowerShell)
+
+```powershell
+irm https://raw.githubusercontent.com/omee-y/omy/main/install.ps1 | iex
+```
+
+### macOS / Linux / WSL
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/omee-y/omy/main/install.sh | bash
+```
+
+The installer automatically:
+
+1. Checks required dependencies and Node.js version.
+2. Downloads OMY from GitHub or updates an existing installation.
+3. Installs dependencies using `npm ci`.
+4. Builds the project using `npm run build`.
+5. Registers the global `omy` command using `npm link`.
+6. Starts the initial setup wizard.
+
+After installation:
+
+```bash
+omy --help
+```
 
 ## Setup
+
+If you prefer installing manually:
+
 ```bash
+git clone https://github.com/omee-y/omy.git
+cd omy
 npm install
 npm run build
 ```
 
 ## Environment Variables
+
+OMY uses BYOK (Bring Your Own Key). You provide your own API credentials.
 
 Create a `.env` file in the project root:
 
@@ -82,22 +125,41 @@ GROQ_API_KEY=gsk_xxxxxxxxxxxxxxxxx
 TELEGRAM_BOT_TOKEN=1234567890:AAxxxxxxxxxxxxxxxxxxxxxxxx
 TELEGRAM_OWNER_ID=123456789
 ```
+
+Never commit your `.env` file or share your API keys and bot token publicly.
+
 ## Run CLI
+
+Check OMY status:
 
 ```bash
 omy status
+```
+
+Ask OMY to perform a coding task:
+
+```bash
 omy ask "fix TypeScript errors"
+```
+
+Execute a command through OMY:
+
+```bash
 omy run "npm test"
 ```
 
-Or:
+Alternatively, run the CLI directly:
 
 ```bash
 node dist/index.js
 ```
 
-## Run Telegram Bot from cli
+## Run Telegram Bot
+
+Start the Telegram bot from the CLI:
 
 ```bash
 omy bot
 ```
+
+Only the configured `TELEGRAM_OWNER_ID` should be authorized to control your agent.
