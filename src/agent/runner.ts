@@ -16,14 +16,6 @@ export interface AskOptions {
   onDiff?: (diff: string) => void;
 }
 
-export interface AskContext {
-  /**
-   * Reserved for memory-provider integration.
-   * These tags are not queried by this runner yet.
-   */
-  memoryTags?: string[];
-}
-
 export interface AgentRunner {
   isBusy(): boolean;
   getProjectRoot(): string;
@@ -32,7 +24,6 @@ export interface AgentRunner {
   runAsk(
     prompt: string,
     options?: AskOptions,
-    context?: AskContext,
   ): Promise<string>;
 }
 
@@ -68,10 +59,6 @@ function isWithinDirectory(root: string, target: string): boolean {
   );
 }
 
-/**
- * Produces a valid, whole-file unified-style diff.
- * It intentionally does not attempt line-level diff minimization.
- */
 function createSimpleDiff(
   filePath: string,
   oldContent: string,
@@ -94,11 +81,6 @@ function createSimpleDiff(
   return output.join("\n");
 }
 
-/**
- * Tool-call arguments from the model must be valid JSON.
- * Do not try to repair malformed JSON with regexes: that can silently
- * corrupt file contents, especially strings containing quotes or braces.
- */
 function parseToolArguments(raw: string): ToolArguments {
   if (!raw.trim()) return {};
 
@@ -123,14 +105,18 @@ export function createAgentRunner(cfg: AppConfig): AgentRunner {
   let projectRoot = path.resolve(cfg.projectRoot || process.cwd());
   let busy = false;
 
-  const apiKey = cfg.groq.apiKey || process.env.GROQ_API_KEY || "";
-  const groq = new Groq({ apiKey });
+  const createGroqClient = (): Groq => {
+    const apiKey = cfg.groq.apiKey || process.env.GROQ_API_KEY;
 
-  /**
-   * Resolve a project-relative path and reject traversal or symlink escapes.
-   * Existing path components are resolved through realpath so a symlink
-   * inside the workspace cannot point outside it.
-   */
+    if (!apiKey) {
+      throw new Error(
+        "OMY requires your Groq API key. Get one at https://console.groq.com/keys, then run `omy setup`.",
+      );
+    }
+
+    return new Groq({ apiKey });
+  };
+
   const resolveSafePath = async (targetPath: string): Promise<string> => {
     if (!targetPath.trim()) {
       throw new Error("A non-empty project-relative path is required.");
@@ -158,15 +144,10 @@ export function createAgentRunner(cfg: AppConfig): AgentRunner {
         await fs.lstat(current);
       } catch (error) {
         if ((error as NodeJS.ErrnoException).code === "ENOENT") {
-          // No later component can exist beneath a missing component.
-          // The remaining lexical path was already checked against root.
           break;
         }
         throw error;
       }
-
-      // Do not treat realpath(ENOENT) as a missing path component. A dangling
-      // symlink could otherwise make mkdir/write follow a link outside root.
       const realCurrent = await fs.realpath(current);
 
       if (!isWithinDirectory(root, realCurrent)) {
@@ -198,9 +179,6 @@ export function createAgentRunner(cfg: AppConfig): AgentRunner {
     }
 
     if (cfg.shellAllowlist && cfg.shellAllowlist.length > 0) {
-      // When an allowlist is enabled, reject shell composition and expansion.
-      // This prevents commands such as `npm test && destructive-command`
-      // from bypassing a first-token-only allowlist check.
       if (/[;&|<>`\n\r$%]/.test(trimmedCommand)) {
         throw new Error(
           "Shell command contains operators or expansion syntax, which are not allowed when OMY_SHELL_ALLOWLIST is enabled.",
@@ -299,20 +277,16 @@ export function createAgentRunner(cfg: AppConfig): AgentRunner {
     async runAsk(
       prompt: string,
       options?: AskOptions,
-      _context?: AskContext,
     ): Promise<string> {
       if (busy) {
         throw new Error("Agent is busy processing another task.");
-      }
-
-      if (!apiKey) {
-        throw new Error("Missing GROQ_API_KEY in environment or .env file.");
       }
 
       if (!prompt.trim()) {
         throw new Error("Prompt cannot be empty.");
       }
 
+      const groq = createGroqClient();
       busy = true;
 
       try {
@@ -455,8 +429,6 @@ Important rules:
 
                   let fullPath = await resolveSafePath(relativePath);
                   await fs.mkdir(path.dirname(fullPath), { recursive: true });
-
-                  // Re-check after creating directories to catch symlink escapes.
                   fullPath = await resolveSafePath(relativePath);
 
                   let oldContent = "";
@@ -629,127 +601,54 @@ Important rules:
   };
 }
 
+type ToolProperty = { type: "string"; description: string };
+
+function defineTool(
+  name: string,
+  description: string,
+  properties: Record<string, ToolProperty>,
+  required: string[],
+): Groq.Chat.ChatCompletionTool {
+  return {
+    type: "function",
+    function: {
+      name,
+      description,
+      parameters: {
+        type: "object",
+        properties,
+        required,
+        additionalProperties: false,
+      },
+    },
+  };
+}
+
 const AGENT_TOOLS: Groq.Chat.ChatCompletionTool[] = [
-  {
-    type: "function",
-    function: {
-      name: "write_file",
-      description:
-        "Create or overwrite a project file with complete content. Creates missing parent folders automatically.",
-      parameters: {
-        type: "object",
-        properties: {
-          path: {
-            type: "string",
-            description: "Project-relative file path",
-          },
-          content: {
-            type: "string",
-            description: "Complete file content",
-          },
-        },
-        required: ["path", "content"],
-        additionalProperties: false,
-      },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "patch_file",
-      description:
-        "Replace one unique exact snippet in an existing project file.",
-      parameters: {
-        type: "object",
-        properties: {
-          path: {
-            type: "string",
-            description: "Project-relative file path",
-          },
-          search: {
-            type: "string",
-            description: "Exact existing snippet. It must occur exactly once.",
-          },
-          replace: {
-            type: "string",
-            description: "Replacement text",
-          },
-        },
-        required: ["path", "search", "replace"],
-        additionalProperties: false,
-      },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "read_file",
-      description: "Read a text file inside the project, including line numbers.",
-      parameters: {
-        type: "object",
-        properties: {
-          path: {
-            type: "string",
-            description: "Project-relative file path",
-          },
-        },
-        required: ["path"],
-        additionalProperties: false,
-      },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "list_dir",
-      description: "List files and folders inside a project directory.",
-      parameters: {
-        type: "object",
-        properties: {
-          path: {
-            type: "string",
-            description: "Project-relative directory path; use '.' for the root",
-          },
-        },
-        required: ["path"],
-        additionalProperties: false,
-      },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "exec_shell",
-      description: "Run a CLI command inside the active project root.",
-      parameters: {
-        type: "object",
-        properties: {
-          command: {
-            type: "string",
-            description: "CLI command, such as npm test or git status",
-          },
-        },
-        required: ["command"],
-        additionalProperties: false,
-      },
-    },
-  },
-  {
-    type: "function",
-    function: {
-      name: "finish",
-      description: "Conclude the task and provide the final report.",
-      parameters: {
-        type: "object",
-        properties: {
-          summary: {
-            type: "string",
-            description: "Accurate summary of changes and checks",
-          },
-        },
-        required: ["summary"],
-        additionalProperties: false,
-      },
-    },
-  },
+  defineTool("write_file", "Create or overwrite a project file.", {
+    path: { type: "string", description: "Project-relative file path" },
+    content: { type: "string", description: "Complete file content" },
+  }, ["path", "content"]),
+
+  defineTool("patch_file", "Replace one unique exact snippet in a file.", {
+    path: { type: "string", description: "Project-relative file path" },
+    search: { type: "string", description: "Exact snippet to find" },
+    replace: { type: "string", description: "Replacement text" },
+  }, ["path", "search", "replace"]),
+
+  defineTool("read_file", "Read a project file with line numbers.", {
+    path: { type: "string", description: "Project-relative file path" },
+  }, ["path"]),
+
+  defineTool("list_dir", "List a project directory.", {
+    path: { type: "string", description: "Project-relative directory; use '.' for root" },
+  }, ["path"]),
+
+  defineTool("exec_shell", "Run a command inside the project root.", {
+    command: { type: "string", description: "Command to execute" },
+  }, ["command"]),
+
+  defineTool("finish", "Finish the task and return a summary.", {
+    summary: { type: "string", description: "Summary of changes and checks" },
+  }, ["summary"]),
 ];

@@ -5,6 +5,7 @@ import { loadConfig } from "./config.js";
 import { splash, createSpinner, createStreamRenderer } from "./cli/ui.js";
 import { askUserPrompt } from "./cli/prompt.js";
 import { createAgentRunner } from "./agent/runner.js";
+import { runSetup } from "./cli/setup.js";
 
 const program = new Command();
 
@@ -20,6 +21,10 @@ program
     const cfg = loadConfig();
     splash(cfg.projectRoot, "Local");
   });
+  program
+  .command("setup")
+  .description("Configure OMY")
+  .action(runSetup);
 
 program
   .command("ask")

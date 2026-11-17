@@ -4,13 +4,7 @@ import chalk from "chalk";
 import ora, { type Ora } from "ora";
 import logUpdate from "log-update";
 
-const ASCII_BANNER = `
-▐██████ ▐██  ▐██ ▐██ ▐██
-▐██ ▐██ ▐███▐███ ▐██ ▐██
-▐██ ▐██ ▐██▐█▐██ ▐██████
-▐██ ▐██ ▐██  ▐██   ▐██
-▐██████ ▐██  ▐██   ▐██
-`;
+
 
 const C = {
   cyan: "#38BDF8",
@@ -18,101 +12,51 @@ const C = {
   dim: "#94A3B8",
   border: "#334155",
   text: "#E2E8F0",
-  green: "#22C55E",
   yellow: "#FACC15",
 };
 
-type Command = {
-  name: string;
-  usage?: string;
-  description: string;
-};
-
-const COMMANDS: Command[] = [
-  { name: "status", description: "Show current status" },
-  { name: "ask", usage: "[prompt...]", description: "Ask the agent to do a coding task" },
-  { name: "run", usage: "<cmd...>", description: "Run a shell command safely in the active project" },
-  { name: "bot", description: "Run Telegram bot" },
-  { name: "help", usage: "[command]", description: "Display help for command" },
+const COMMANDS = [
+  ["setup", "", "Configure Groq API key"],
+  ["status", "", "Show agent status"],
+  ["ask", "[prompt]", "Ask AI"],
+  ["run", "<command>", "Execute shell command"],
+  ["bot", "", "Start Telegram bot"],
 ];
 
-function commandName(command: Command): string {
-  return command.usage
-    ? `${command.name} ${command.usage}`
-    : command.name;
-}
+export function splash(project: string, mode: string): void {
+  
+  const title = chalk.bold("OMY") + chalk.hex(C.muted)(" · personal coding agent");
 
-export function splash(
-  projectLabel: string,
-  modeLabel: string,
-): void {
-  const banner = chalk.hex(C.cyan).bold(ASCII_BANNER.trim());
-
-  const header = [
-    chalk.bold.hex(C.cyan)("OMY"),
-    chalk.hex(C.muted)(" / "),
-    chalk.italic.hex(C.dim)("personal AI coding agent"),
-  ].join("");
-
-  const separator = chalk.hex(C.border)("─".repeat(48));
-
-  const metadata = [
-    `${chalk.hex(C.muted)("STATUS  ")} ${chalk.greenBright("●")} ${chalk.hex(C.text)("READY")}`,
-    `${chalk.hex(C.muted)("MODE    ")} ${chalk.hex(C.cyan)(modeLabel)}`,
-    `${chalk.hex(C.muted)("PROJECT ")} ${chalk.hex(C.text)(projectLabel)}`,
-  ].join("\n");
-
-  const commands = COMMANDS.map((command) => {
-    const name = chalk.hex(C.cyan).bold(commandName(command));
-    const description = chalk.hex(C.dim)(command.description);
-
-    return `  ${name.padEnd(25)} ${description}`;
-  }).join("\n");
-
-  const options = [
-    `${chalk.hex(C.cyan).bold("-V, --version")}  ${chalk.hex(C.dim)("Output version number")}`,
-    `${chalk.hex(C.cyan).bold("-h, --help")}     ${chalk.hex(C.dim)("Display help for command")}`,
-  ].join("\n");
-
-  const telegramNote =
-    `${chalk.hex(C.yellow)("NOTE")} ${chalk.hex(C.dim)("bot requires TELEGRAM_BOT_TOKEN + TELEGRAM_OWNER_ID")}`;
+  const commands = COMMANDS.map(([name, usage, desc]) =>
+    `  ${chalk.hex(C.cyan).bold(name.padEnd(8))} ${chalk.hex(C.dim)(usage.padEnd(11))} ${chalk.white(desc)}`
+  ).join("\n");
 
   const content = [
-    banner,
-    "",
-    header,
-    separator,
-    metadata,
+    title,
+    chalk.hex(C.border)("─".repeat(38)),
+    `${chalk.hex(C.muted)("MODE")}    ${chalk.hex(C.cyan)(mode)}`,
+    `${chalk.hex(C.muted)("PROJECT")} ${chalk.white(project)}`,
     "",
     chalk.hex(C.cyan).bold("COMMANDS"),
     commands,
     "",
-    chalk.hex(C.cyan).bold("OPTIONS"),
-    options,
-    "",
-    telegramNote,
+    chalk.hex(C.dim)("Use omy --help for more options."),
+    chalk.hex(C.yellow)("Telegram requires bot credentials."),
   ].join("\n");
 
-  const card = boxen(content, {
-    padding: { top: 1, bottom: 1, left: 2, right: 2 },
-    margin: { top: 1, bottom: 1 },
-    borderStyle: "round",
-    borderColor: C.border,
-  });
-
-  process.stdout.write(`${card}\n`);
+  console.log(
+    boxen(content, {
+      padding: 1,
+      borderStyle: "round",
+      borderColor: C.border,
+    }),
+  );
 }
 
 export function createSpinner(text: string): Ora {
   return ora({
     text: chalk.hex(C.dim)(text),
-    spinner: {
-      interval: 80,
-      frames: [
-        "⠋", "⠙", "⠹", "⠸", "⠼",
-        "⠴", "⠦", "⠧", "⠇", "⠏",
-      ].map((frame) => chalk.hex(C.cyan)(frame)),
-    },
+    spinner: "dots",
   }).start();
 }
 
@@ -121,45 +65,32 @@ export type StreamRenderer = {
   end: () => void;
 };
 
-export function createStreamRenderer(
-  badge = chalk.bgHex("#0EA5E9").bold.black(" OMY "),
-): StreamRenderer {
+export function createStreamRenderer(): StreamRenderer {
   let buffer = "";
-  let isDone = false;
+  let done = false;
 
-  const formatOutput = (text: string): string => {
-    if (!text) return "";
-
-    const lines = text.replace(/\r\n/g, "\n").split("\n");
-
-    return lines
-      .map((line, index) =>
-        index === 0
-          ? `${badge} ${line}`
-          : `${chalk.hex(C.border)("  │ ")}${line}`,
+  const format = (text: string) =>
+    text.split("\n")
+      .map((line, i) =>
+        `${i === 0 ? chalk.bgHex("#0EA5E9").black(" OMY ") : chalk.hex(C.border)("  │ ")} ${line}`,
       )
       .join("\n");
-  };
 
   return {
-    write(chunk: string) {
-      if (isDone || !chunk) return;
-
+    write(chunk) {
+      if (done || !chunk) return;
       buffer += chunk;
-      logUpdate(formatOutput(buffer));
+      logUpdate(format(buffer));
     },
 
     end() {
-      if (isDone) return;
-
-      isDone = true;
+      if (done) return;
+      done = true;
       logUpdate.clear();
       logUpdate.done();
 
-      const finalContent = formatOutput(buffer.trimEnd());
-
-      if (finalContent) {
-        process.stdout.write(`${finalContent}\n\n`);
+      if (buffer.trim()) {
+        process.stdout.write(format(buffer.trimEnd()) + "\n\n");
       }
 
       buffer = "";

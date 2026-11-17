@@ -1,4 +1,19 @@
-import "dotenv/config";
+import dotenv from "dotenv";
+import path from "node:path";
+import os from "node:os";
+
+const globalEnvPath = path.join(
+  os.homedir(),
+  ".omy",
+  ".env",
+);
+
+
+dotenv.config({
+  path: globalEnvPath,
+});
+
+dotenv.config();
 
 export type AppConfig = {
   projectRoot: string;

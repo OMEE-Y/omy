@@ -218,7 +218,7 @@ export async function startTelegramBot(cfg: AppConfig): Promise<void> {
             acc = summary;
           },
         },
-        { memoryTags },
+        
       );
 
       await editor.finish("Done.");
